@@ -16,13 +16,15 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/ivfzhou/protobuf-go/cmd/protoc-gen-go/descriptor"
+
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/internal/encoding/tag"
 	"google.golang.org/protobuf/internal/genid"
 	"google.golang.org/protobuf/internal/version"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoimpl"
-
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
 )
@@ -132,7 +134,7 @@ func genGeneratedHeader(gen *protogen.Plugin, g *protogen.GeneratedFile, f *file
 				protocVersion += "-" + s
 			}
 		}
-		g.P("// \tprotoc-gen-go ", protocGenGoVersion)
+		g.P("// \tprotoc-gen-go ", protocGenGoVersion, " See: https://github.com/ivfzhou/protobuf-go")
 		g.P("// \tprotoc        ", protocVersion)
 	}
 
@@ -403,6 +405,7 @@ func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, fie
 		{"protobuf", fieldProtobufTagValue(field)},
 		{"json", fieldJSONTagValue(field)},
 	}
+
 	if field.Desc.IsMap() {
 		key := field.Message.Fields[0]
 		val := field.Message.Fields[1]
@@ -413,6 +416,28 @@ func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, fie
 	}
 	if m.isTracked {
 		tags = append(tags, gotrackTags...)
+	}
+
+	// 处理custom tag
+	tagExistKey := map[string]bool{
+		"protobuf_oneof": true,
+		"json":           true,
+		"protobuf_key":   true,
+		"protobuf_val":   true,
+		"go":             true,
+	}
+	op, ok := field.Desc.Options().(*descriptorpb.FieldOptions)
+	if ok {
+		customTags, ok := proto.GetExtension(op, descriptor.E_Tag).([]string)
+		if ok {
+			for _, v := range customTags {
+				tagVal := strings.Split(v, ":")
+				if len(tagVal) == 2 && tagVal[0] != "" && tagVal[1] != "" && !tagExistKey[tagVal[0]] {
+					tags = append(tags, [2]string{tagVal[0], tagVal[1]})
+					tagExistKey[tagVal[0]] = true
+				}
+			}
+		}
 	}
 
 	name := field.GoName
@@ -714,7 +739,10 @@ func fieldDefaultValue(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, f
 }
 
 func fieldJSONTagValue(field *protogen.Field) string {
-	return string(field.Desc.Name()) + ",omitempty"
+	if jsonName := field.Desc.JSONName(); jsonName != "" && jsonName != string(field.Desc.Name()) && !field.Desc.IsExtension() {
+		return jsonName
+	}
+	return string(field.Desc.Name())
 }
 
 func genExtensions(g *protogen.GeneratedFile, f *fileInfo) {

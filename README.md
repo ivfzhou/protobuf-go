@@ -1,3 +1,39 @@
+# 说明
+
+此库克隆于官方版本v1.28.1，添加了能自定义结构体tag的能力。
+
+* 运行命令生成protoc-gen-go文件
+
+```shell
+git clone https://github.com/ivfzhou/protobuf-go.git
+cd protobuf-go
+go install ./cmd/protoc-gen-go
+```
+
+* 编写example.proto。导入[custom_tag.proto](https://github.com/ivfzhou/protobuf-go/blob/master/cmd/protoc-gen-go/descriptor/custom_tag.proto)。
+
+```protobuf
+import "custom_tag.proto";
+
+message Req {
+  string AField = 1 [json_name = "aField", (custom.tag) = "header:aField", (custom.tag) = "uri:aField"];
+}
+```
+
+* 编译proto生成pb
+
+```shell
+protoc --go_out=./ --proto_path=./ example.proto
+```
+
+* pb结构体样例
+
+```go
+type Req struct {
+  AField string `protobuf:"bytes,2,opt,name=AField,json=aField,proto3" json:"aField" header:"aField" uri:"aField"`
+}
+```
+
 # Go support for Protocol Buffers
 
 [![Go Reference](https://pkg.go.dev/badge/google.golang.org/protobuf.svg)](https://pkg.go.dev/google.golang.org/protobuf)
